@@ -10,9 +10,20 @@
     if (t === null || t === undefined) return "";
     return String(t).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
   }
-
   function cust(id) { return D.customers.find(x => x.id === id); }
-  function custName(id) { const c = cust(id); return c ? c.name : '-'; }
+  function custName(id) { const c = cust(id); return c ? c.name : "-"; }
+  function custCode(id) { const c = cust(id); return c ? c.code : "-"; }
+  function yarnName(id) {
+    if (id === "manual") return "Elle girilen iplik";
+    const y = D.yarnTypes.find(x => x.id === id);
+    return y ? y.name : "-";
+  }
+
+  function statusBadge(status) {
+    const open = status === "Açık";
+    return `<span class="badge ${open ? "badge-production" : "badge-completed"}">${esc(status)}</span>`;
+  }
+
   function persistWo(w) {
     if (!w) return;
     try {
@@ -22,7 +33,6 @@
         yarnUsage: w.yarnUsage || []
       }));
     } catch (e) {}
-    // Firebase bulut senkronizasyonu
     if (window.FIREBASE && w) {
       try {
         window.FIREBASE.ref("workOrders/" + w.id).set({
@@ -32,17 +42,6 @@
         });
       } catch (e) {}
     }
-  }
-  function custCode(id) { const c = cust(id); return c ? c.code : "—"; }
-  function yarnName(id) {
-    if (id === "manual") return "Elle girilen iplik";
-    const y = D.yarnTypes.find(x => x.id === id);
-    return y ? y.name : "—";
-  }
-
-  function statusBadge(status) {
-    const open = status === "Açık";
-    return `<span class="badge ${open ? "badge-production" : "badge-completed"}">${esc(status)}</span>`;
   }
 
   function qrPayload(wo) {
@@ -68,7 +67,6 @@
         + "&cust=" + encodeURIComponent(wo.custId)
         + "&status=" + encodeURIComponent(wo.status);
     }
-    // Ag erisimi yokken: metin (sistem baglantisi icin Ayarlar'dan sunucu adresi girilmeli)
     return "ZERYTHA WO | ID: " + wo.id +
       " | MODEL: " + (wo.modelName || wo.model) +
       " | QTY: " + wo.qty +
@@ -99,7 +97,6 @@
         pieces: [],
         yarnUsage: []
       };
-      // telefon hafızasından parça/iplik kayıtlarını geri yükle
       try {
         const saved = localStorage.getItem("wo_" + wo.id);
         if (saved) {
@@ -150,8 +147,12 @@
     <button class="btn btn-secondary btn-sm" onclick="window.APP.navigate('/workorder-new?id=${encodeURIComponent(wo.id)}')">Düzenle</button>
     <button class="btn btn-secondary btn-sm" onclick="APP_WO.toggleStatus('${wo.id}')">${wo.status === "Açık" ? "Üretimi Tamamla" : "Yeniden Aç"}</button>
     <button class="btn btn-primary btn-sm" onclick="APP_WO.printWo('${wo.id}')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline><path d="M6 21V4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v17a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2z"></path></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
       A4 Yazdır
+    </button>
+    <button class="btn btn-secondary btn-sm" onclick="APP_WO.exportData('${wo.id}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+      Verileri İndir
     </button>
   </div>
 </div>
@@ -159,93 +160,76 @@
 <div class="wo-detail-grid">
   <div class="card">
     <div class="card-body">
-      <div style="display:flex;gap:1.5rem;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;">
-        <div style="min-width:0;">
-          <div class="form-label">İş Emri No</div>
-          <div class="wo-code">${esc(wo.id)}</div>
-          <div style="font-size:0.75rem;color:var(--color-text-secondary);margin-top:0.35rem;">Oluşturma: ${fmtDate(wo.created)}</div>
-          <div style="margin-top:0.85rem;display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
-            ${statusBadge(wo.status)}
-            ${late ? `<span class="badge" style="background:rgba(142,75,75,0.12);color:var(--color-error);border-color:rgba(142,75,75,0.4);">Termin Geçti</span>` : ""}
-          </div>
-        </div>
-        <div class="wo-qr-wrap">
-          <div id="wo-qr" class="wo-qr"></div>
-          <div class="wo-qr-label">Makineci QR Tarama</div>
-          <div style="font-size:0.62rem;color:var(--color-text-muted);margin-top:0.35rem;text-align:center;max-width:120px;line-height:1.3;">
-            Telefonla okutunca iş emri açılır; dakika/gramaj girilip kaydedilir.
-          </div>
-        </div>
-      </div>
-
+      <div class="section-title">İş Emri Bilgileri</div>
       <div class="wo-spec-grid">
-        <div><div class="form-label">Müşteri</div><div class="wo-spec-value">${esc(custName(wo.custId))} <span style="color:var(--color-gold);font-size:0.75rem;">(${esc(custCode(wo.custId))})</span></div></div>
+        <div><div class="form-label">Müşteri</div><div class="wo-spec-value">${esc(custName(wo.custId))}</div></div>
         <div><div class="form-label">Sezon</div><div class="wo-spec-value">${esc(wo.season)}</div></div>
         <div><div class="form-label">Model Kodu</div><div class="wo-spec-value">${esc(wo.model)}</div></div>
+        <div><div class="form-label">Model Adı</div><div class="wo-spec-value">${esc(wo.modelName || wo.model)}</div></div>
+        <div><div class="form-label">İplik</div><div class="wo-spec-value">${esc(yarnName(wo.yarnId))}${wo.yarnManual ? " · " + esc(wo.yarnManual) : ""}</div></div>
         <div><div class="form-label">Makine GG</div><div class="wo-spec-value">${esc(wo.gauge)}</div></div>
-        <div><div class="form-label">İplik Türü</div><div class="wo-spec-value">${esc(yarnName(wo.yarnId))}${wo.yarnManual ? " — " + esc(wo.yarnManual) : ""}</div></div>
         <div><div class="form-label">Miktar</div><div class="wo-spec-value">${fmtNumber(wo.qty)} adet</div></div>
-        <div><div class="form-label">Termin Tarihi</div><div class="wo-spec-value" style="color:${late ? "var(--color-error)" : "var(--color-text-main)"};">${fmtDate(wo.deadline)}</div></div>
-        <div><div class="form-label">Parça / İplik Kaydı</div><div class="wo-spec-value">${(wo.pieces || []).length} parça · ${(wo.yarnUsage || []).length} iplik</div></div>
+        <div><div class="form-label">Termin</div><div class="wo-spec-value">${fmtDate(wo.deadline)}${late ? ' <span class="badge" style="background:rgba(142,75,75,0.12);color:var(--color-error);border-color:rgba(142,75,75,0.4);">Gecikti</span>' : ""}</div></div>
+        <div><div class="form-label">Durum</div><div class="wo-spec-value">${statusBadge(wo.status)}</div></div>
+        <div><div class="form-label">Oluşturulma</div><div class="wo-spec-value">${fmtDate(wo.created)}</div></div>
       </div>
+      ${wo.image ? `<div style="margin-top:1rem;"><img src="${wo.image}" alt="Model" style="max-width:100%;border-radius:var(--radius-md);border:1px solid var(--color-border);"></div>` : ""}
+    </div>
+  </div>
 
-      <div class="wo-model-image-row">
-        <div class="form-label">Model Görseli</div>
-        <div class="wo-model-image">
-          ${wo.image ? `<img src="${esc(wo.image)}" alt="${esc(wo.modelName)}">` : `<span>Görsel yok</span>`}
+  <div class="card">
+    <div class="card-body">
+      <div class="wo-qr-wrap">
+        <div id="wo-qr" class="wo-qr"></div>
+        <div class="wo-qr-label">Makineci QR Tarama</div>
+        <div style="font-size:0.62rem;color:var(--color-text-muted);margin-top:0.35rem;text-align:center;max-width:120px;line-height:1.3;">
+          Telefonla okutunca iş emri açılır; dakika/gramaj girilip kaydedilir.
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="wo-instruction">
-  <div class="wo-instruction-title">Makineci Talimatı</div>
-  <div class="wo-instruction-text">
-    İş emrindeki <b>QR kodu</b> cep telefonuyla okutun. Dokunan her parçanın adını, işleme süresini (dakika) ve ham boyunu (cm) girin.
-    Kullanılan ipliğin gramajını ve kon adedini kaydedin. Kayıtlar bu iş emrinde saklanır.
+<div class="card" style="margin-top:1.25rem;">
+  <div class="card-head" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.1rem 1.35rem;border-bottom:1px solid var(--color-border);">
+    <div class="panel-title">Parça Kayıtları (Dakika)</div>
+    <button class="btn btn-secondary btn-sm" onclick="APP_WO.addPiece('${wo.id}')">+ Parça Ekle</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Parça Adı</th><th style="text-align:right;">Dakika</th><th style="text-align:right;">Ham Boy (cm)</th><th>Kaydeden</th><th>Tarih</th><th style="width:60px;"></th></tr></thead>
+      <tbody>
+        ${(wo.pieces || []).map((p, i) => `<tr>
+          <td style="font-weight:600;color:var(--color-text-main);">${esc(p.name)}</td>
+          <td class="num" style="text-align:right;font-family:var(--font-numeric);">${fmtNumber(p.min)}</td>
+          <td class="num" style="text-align:right;font-family:var(--font-numeric);color:var(--color-text-secondary);">${fmtNumber(p.len)}</td>
+          <td style="font-size:0.8rem;color:var(--color-text-secondary);">${esc(p.user)}</td>
+          <td style="font-size:0.75rem;color:var(--color-text-muted);">${fmtDate(p.ts ? p.ts.split("T")[0] : "")}</td>
+          <td style="text-align:center;"><button class="btn btn-ghost btn-sm" style="color:var(--color-error);" onclick="APP_WO.removePiece('${wo.id}',${i})">Sil</button></td>
+        </tr>`).join("") || `<tr><td colspan="6" style="padding:1.5rem;text-align:center;color:var(--color-text-muted);">Henüz parça kaydı yok</td></tr>`}
+      </tbody>
+    </table>
   </div>
 </div>
 
-<div class="card" style="margin-bottom:1rem;">
+<div class="card" style="margin-top:1.25rem;">
   <div class="card-head" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.1rem 1.35rem;border-bottom:1px solid var(--color-border);">
-    <div class="panel-title">Dokunan Parçalar &amp; İplik Kullanımı</div>
-    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-      <button class="btn btn-secondary btn-sm" onclick="APP_WO.addPiece('${wo.id}')">+ Parça Ekle</button>
-      <button class="btn btn-secondary btn-sm" onclick="APP_WO.addYarn('${wo.id}')">+ İplik Girişi</button>
-    </div>
+    <div class="panel-title">İplik Kullanımı (Gramaj)</div>
+    <button class="btn btn-secondary btn-sm" onclick="APP_WO.addYarn('${wo.id}')">+ İplik Girişi</button>
   </div>
-  <div class="card-body">
-    <div class="wo-table-label">Parça Kayıtları</div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Parça Adı</th><th>Dakika</th><th style="text-align:right;">Ham Boy (cm)</th><th>Kullanıcı</th><th style="text-align:center;">İşlem</th></tr></thead>
-        <tbody>
-          ${(wo.pieces || []).map((p, i) => `<tr>
-            <td>${esc(p.name)}</td>
-            <td class="num">${esc(p.min)}</td>
-            <td class="num" style="text-align:right;">${esc(p.len)}</td>
-            <td style="font-size:0.75rem;color:var(--color-text-secondary);">${esc(p.user)}</td>
-            <td style="text-align:center;"><button class="btn btn-ghost btn-sm" style="color:var(--color-error);" onclick="APP_WO.removePiece('${wo.id}',${i})">Sil</button></td>
-          </tr>`).join("") || `<tr><td colspan="5" style="padding:1.25rem;color:var(--color-text-muted);text-align:center;">Henüz parça kaydı yok</td></tr>`}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="wo-table-label" style="margin-top:1.25rem;">İplik Kullanımı (gramaj)</div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>İplik</th><th style="text-align:right;">Gramaj (g)</th><th style="text-align:right;">Kon</th><th style="text-align:center;">İşlem</th></tr></thead>
-        <tbody>
-          ${(wo.yarnUsage || []).map((y, i) => `<tr>
-            <td>${esc(y.type)}</td>
-            <td class="num" style="text-align:right;">${esc(y.gram)}</td>
-            <td class="num" style="text-align:right;">${esc(y.cones)}</td>
-            <td style="text-align:center;"><button class="btn btn-ghost btn-sm" style="color:var(--color-error);" onclick="APP_WO.removeYarn('${wo.id}',${i})">Sil</button></td>
-          </tr>`).join("") || `<tr><td colspan="4" style="padding:1.25rem;color:var(--color-text-muted);text-align:center;">Henüz iplik kaydı yok</td></tr>`}
-        </tbody>
-      </table>
-    </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>İplik Türü / Karışım</th><th style="text-align:right;">Gramaj (g)</th><th style="text-align:right;">Kon Adedi</th><th>Tarih</th><th style="width:60px;"></th></tr></thead>
+      <tbody>
+        ${(wo.yarnUsage || []).map((y, i) => `<tr>
+          <td style="font-weight:600;color:var(--color-text-main);">${esc(y.type)}</td>
+          <td class="num" style="text-align:right;font-family:var(--font-numeric);">${fmtNumber(y.gram)}</td>
+          <td class="num" style="text-align:right;font-family:var(--font-numeric);color:var(--color-text-secondary);">${fmtNumber(y.cones)}</td>
+          <td style="font-size:0.75rem;color:var(--color-text-muted);">${fmtDate(y.ts ? y.ts.split("T")[0] : "")}</td>
+          <td style="text-align:center;"><button class="btn btn-ghost btn-sm" style="color:var(--color-error);" onclick="APP_WO.removeYarn('${wo.id}',${i})">Sil</button></td>
+        </tr>`).join("") || `<tr><td colspan="5" style="padding:1.5rem;text-align:center;color:var(--color-text-muted);">Henüz iplik kullanımı kaydı yok</td></tr>`}
+      </tbody>
+    </table>
   </div>
 </div>
 `;
@@ -257,6 +241,7 @@
       const wo = D.workOrders.find(w => w.id === id);
       return wo ? qrPayload(wo) : null;
     };
+
     const q = window.APP.getQuery();
     const wo = D.workOrders.find(w => w.id === q.id);
     if (!wo) return;
@@ -277,6 +262,21 @@
       });
     }
 
+    // Firebase'dan veri yükle (varsa)
+    if (window.FIREBASE && window.__WO_FB_LOADED_ID !== wo.id) {
+      window.__WO_FB_LOADED_ID = wo.id;
+      window.FIREBASE.ref("workOrders/" + wo.id).once("value").then(snap => {
+        const d = snap.val();
+        if (d) {
+          if (Array.isArray(d.pieces)) wo.pieces = d.pieces;
+          if (Array.isArray(d.yarnUsage)) wo.yarnUsage = d.yarnUsage;
+          if (d.status) wo.status = d.status;
+          persistWo(wo);
+          window.APP.refresh();
+        }
+      }).catch(() => {});
+    }
+
     const qrEl = document.getElementById("wo-qr");
     if (qrEl && window.QRCode) {
       qrEl.innerHTML = "";
@@ -295,8 +295,6 @@
     } else if (qrEl) {
       qrEl.innerHTML = `<div style="font-size:0.65rem;color:var(--color-text-muted);text-align:center;padding:0.5rem;">QR kütüphanesi yüklenemedi</div>`;
     }
-
-    window.APP_WO = window.APP_WO || {};
 
     window.APP_WO.toggleStatus = function (id) {
       const w = D.workOrders.find(x => x.id === id);
@@ -352,7 +350,6 @@
           w.yarnUsage = w.yarnUsage || [];
           w.yarnUsage.push({ type: data.type, gram: data.gram, cones: data.cones, ts: new Date().toISOString() });
           persistWo(w);
-
           toast("İplik kullanımı kaydedildi: " + data.type);
           window.APP.refresh();
         }
@@ -364,9 +361,45 @@
       if (!w || !w.yarnUsage) return;
       w.yarnUsage.splice(i, 1);
       persistWo(w);
-
       toast("İplik kaydı kaldırıldı");
       window.APP.refresh();
+    };
+
+    window.APP_WO.exportData = function (id) {
+      const w = D.workOrders.find(x => x.id === id);
+      if (!w) return;
+      const rows = [];
+      rows.push("Is Emri," + w.id);
+      rows.push("Model," + (w.modelName || w.model));
+      rows.push("Miktar," + w.qty);
+      rows.push("GG," + w.gauge);
+      rows.push("Termin," + w.deadline);
+      rows.push("Durum," + w.status);
+      rows.push("");
+      rows.push("PARCA KAYITLARI");
+      rows.push("Parca Adi,Dakika (dk),Ham Boy (cm),Kaydeden,Tarih");
+      (w.pieces || []).forEach(p => rows.push([p.name, p.min, p.len, p.user, p.ts].map(v => '"' + String(v === null || v === undefined ? "" : v).replace(/"/g, '""') + '"').join(",")));
+      rows.push("");
+      rows.push("IPLIK KULLANIMI");
+      rows.push("Iplik Turu,Gramaj (g),Kon Adedi,Tarih");
+      (w.yarnUsage || []).forEach(y => rows.push([y.type, y.gram, y.cones, y.ts].map(v => '"' + String(v === null || v === undefined ? "" : v).replace(/"/g, '""') + '"').join(",")));
+      const csv = "\uFEFF" + rows.join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "is-emri-" + w.id + ".csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      toast("Veriler indirildi: " + w.id);
+      if (navigator.share) {
+        try {
+          const file = new File([blob], "is-emri-" + w.id + ".csv", { type: "text/csv" });
+          navigator.share({ title: "Is Emri " + w.id, files: [file] }).catch(() => {});
+        } catch (e) {}
+      }
     };
 
     window.APP_WO.printWo = function (id) {
@@ -378,64 +411,49 @@
         ? `<img src="${qr}" alt="QR" style="width:66px;height:66px;display:block;">`
         : `<div style="width:66px;height:66px;border:1px solid #242724;display:grid;place-items:center;font-size:7pt;">${esc(w.id)}</div>`;
 
-      const pieces = (w.pieces || []).map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td><td>${esc(p.min)}</td><td>${esc(p.len)}</td><td>${esc(p.user)}</td></tr>`).join("");
-      const yarns = (w.yarnUsage || []).map((y, i) => `<tr><td>${i + 1}</td><td>${esc(y.type)}</td><td>${esc(y.gram)}</td><td>${esc(y.cones)}</td></tr>`).join("");
+      const pieceRows = (w.pieces || []).map(p =>
+        `<tr><td>${esc(p.name)}</td><td style="text-align:right;">${fmtNumber(p.min)}</td><td style="text-align:right;">${fmtNumber(p.len)}</td><td>${esc(p.user)}</td><td>${fmtDate(p.ts ? p.ts.split("T")[0] : "")}</td></tr>`
+      ).join("");
+      const yarnRows = (w.yarnUsage || []).map(y =>
+        `<tr><td>${esc(y.type)}</td><td style="text-align:right;">${fmtNumber(y.gram)}</td><td style="text-align:right;">${fmtNumber(y.cones)}</td><td>${fmtDate(y.ts ? y.ts.split("T")[0] : "")}</td></tr>`
+      ).join("");
 
-      const win = window.open("", "_blank", "width=900,height=1000");
+      const win = window.open("", "_blank", "width=900,height=1100");
       if (!win) { toast("Yazdırma penceresi engellendi. Lütfen açılır pencerelere izin verin."); return; }
-
       win.document.write(`<!DOCTYPE html>
 <html lang="tr"><head><meta charset="UTF-8"><title>${esc(w.id)} — ZERYTHA OS</title>
 <style>
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4; margin: 14mm; }
   * { box-sizing: border-box; }
-  body { font-family: Arial, Helvetica, sans-serif; background:#fff; color:#090B0B; margin:0; padding:6mm; }
+  body { font-family: Arial, Helvetica, sans-serif; color:#141715; margin:0; padding:8mm; }
   .brand { font-family: Georgia, 'Times New Roman', serif; color:#8F7343; font-size:20pt; letter-spacing:0.08em; }
   .sub { color:#6B6D67; font-size:8pt; letter-spacing:0.14em; text-transform:uppercase; margin-top:1mm; }
-  h1 { font-family: Georgia, 'Times New Roman', serif; font-size:16pt; margin:6mm 0 1mm; font-weight:500; }
-  h2 { font-size:9pt; letter-spacing:0.12em; text-transform:uppercase; color:#6B6D67; margin:7mm 0 2mm; border-bottom:1px solid #D8D3C8; padding-bottom:1.5mm; }
   .head { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #B9955D; padding-bottom:4mm; }
-  .qr { text-align:center; font-size:7pt; color:#6B6D67; }
-  table { width:100%; border-collapse:collapse; font-size:8.5pt; }
-  th, td { border:1px solid #CFC9BD; padding:2.2mm 2.5mm; text-align:left; vertical-align:top; }
-  th { background:#F1EEE7; font-weight:600; width:22%; }
-  .sheet th { width:auto; background:#171A18; color:#F1EEE7; font-size:7.5pt; letter-spacing:0.04em; }
-  .sheet td { font-size:8pt; }
-  .muted { color:#6B6D67; font-size:7.5pt; }
+  h1 { font-family: Georgia, 'Times New Roman', serif; font-size:15pt; margin:7mm 0 2mm; font-weight:500; }
+  h2 { font-size:9pt; letter-spacing:0.12em; text-transform:uppercase; color:#6B6D67; margin:7mm 0 2mm; border-bottom:1px solid #D8D3C8; padding-bottom:1.5mm; }
+  table { width:100%; border-collapse:collapse; font-size:9pt; }
+  th, td { border:1px solid #CFC9BD; padding:2mm 2.5mm; text-align:left; vertical-align:top; }
+  th { background:#F1EEE7; font-weight:600; width:24%; }
+  .muted { color:#6B6D67; font-size:8pt; }
   .print-btn { position:fixed; right:18px; bottom:18px; background:#B9955D; color:#090B0B; border:0; padding:10px 18px; font-weight:700; border-radius:4px; cursor:pointer; }
   @media print { .print-btn { display:none; } body { padding:0; } }
-</style></head>
-<body>
+</style></head><body>
   <div class="head">
-    <div>
-      <div class="brand">ZERYTHA</div>
-      <div class="sub">TRIKO, BİR YAŞAM TARZIDIR.</div>
-    </div>
-    <div class="qr">${qrBlock}<div style="margin-top:1mm;">${esc(w.id)}</div></div>
+    <div><div class="brand">ZERYTHA</div><div class="sub">TRIKO, BİR YAŞAM TARZIDIR.</div></div>
+    <div class="muted" style="text-align:right;">İş Emri<br>${esc(w.id)}<br>${fmtDate(new Date().toISOString().split("T")[0])}</div>
   </div>
   <h1>${esc(w.modelName || w.model)}</h1>
-  <div class="muted">İş Emri: ${esc(w.id)} · ${esc(w.season)} · ${esc(custName(w.custId))}</div>
-
-  <h2>İş Emri Bilgileri</h2>
+  <div class="muted">${esc(custName(w.custId))} · ${esc(w.season)} · ${esc(w.id)}</div>
   <table>
-    <tr><th>Müşteri</th><td>${esc(custName(w.custId))} (${esc(custCode(w.custId))})</td><th>Sezon</th><td>${esc(w.season)}</td></tr>
-    <tr><th>Model Kodu</th><td>${esc(w.model)}</td><th>Makine GG</th><td>${esc(w.gauge)}</td></tr>
-    <tr><th>İplik</th><td>${esc(yarnName(w.yarnId))}${w.yarnManual ? " — " + esc(w.yarnManual) : ""}</td><th>Termin</th><td>${fmtDate(w.deadline)}</td></tr>
-    <tr><th>Miktar</th><td>${fmtNumber(w.qty)} adet</td><th>Durum</th><td>${esc(w.status)}</td></tr>
+    <tr><th>Müşteri</th><td>${esc(custName(w.custId))}</td><th>İş Emri No</th><td>${esc(w.id)}</td></tr>
+    <tr><th>Model Kodu</th><td>${esc(w.model)}</td><th>Model Adı</th><td>${esc(w.modelName || w.model)}</td></tr>
+    <tr><th>Makine GG</th><td>${esc(w.gauge)}</td><th>İplik</th><td>${esc(yarnName(w.yarnId))}${w.yarnManual ? " · " + esc(w.yarnManual) : ""}</td></tr>
+    <tr><th>Miktar</th><td>${fmtNumber(w.qty)} adet</td><th>Termin</th><td>${fmtDate(w.deadline)}</td></tr>
+    <tr><th>Durum</th><td>${esc(w.status)}</td><th>Oluşturulma</th><td>${fmtDate(w.created)}</td></tr>
   </table>
-
-  <h2>Dokunan Parçalar</h2>
-  <table class="sheet">
-    <thead><tr><th>#</th><th>Parça Adı</th><th>Dakika</th><th>Ham Boy (cm)</th><th>Kullanıcı</th></tr></thead>
-    <tbody>${pieces || `<tr><td colspan="5" class="muted">Kayıt yok</td></tr>`}</tbody>
-  </table>
-
-  <h2>İplik Kullanımı</h2>
-  <table class="sheet">
-    <thead><tr><th>#</th><th>İplik</th><th>Gramaj (g)</th><th>Kon</th></tr></thead>
-    <tbody>${yarns || `<tr><td colspan="4" class="muted">Kayıt yok</td></tr>`}</tbody>
-  </table>
-
+  ${qr ? `<div style="margin-top:6mm;display:flex;align-items:center;gap:4mm;"><img src="${qr}" alt="QR" style="width:24mm;height:24mm;"><div class="muted">Makineci, QR kodu okutarak parça ve iplik kayıtlarını sisteme girer. Bu çıktı A4 olarak yazdırılabilir.</div></div>` : ""}
+  ${pieceRows ? `<h2>Parça Kayıtları (Dakika)</h2><table><thead><tr><th>Parça Adı</th><th style="text-align:right;">Dakika</th><th style="text-align:right;">Ham Boy (cm)</th><th>Kaydeden</th><th>Tarih</th></tr></thead><tbody>${pieceRows}</tbody></table>` : ""}
+  ${yarnRows ? `<h2>İplik Kullanımı (Gramaj)</h2><table><thead><tr><th>İplik Türü</th><th style="text-align:right;">Gramaj (g)</th><th style="text-align:right;">Kon Adedi</th><th>Tarih</th></tr></thead><tbody>${yarnRows}</tbody></table>` : ""}
   <p class="muted" style="margin-top:6mm;">Makineci, QR kodu okutarak parça ve iplik kayıtlarını sisteme girer. Bu çıktı A4 olarak yazdırılabilir.</p>
   <button class="print-btn" onclick="window.print()">Yazdır</button>
 </body></html>`);
