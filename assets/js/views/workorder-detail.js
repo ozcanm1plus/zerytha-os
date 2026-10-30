@@ -47,25 +47,25 @@
   function qrPayload(wo) {
     const base = (window.APP.STATE.company && window.APP.STATE.company.qrBaseUrl || "").trim().replace(/\/+$/, "");
     if (base) {
-      return base + "/?view=workorder-detail&id=" + encodeURIComponent(wo.id)
-        + "&model=" + encodeURIComponent(wo.modelName || wo.model)
-        + "&qty=" + wo.qty
-        + "&gg=" + encodeURIComponent(wo.gauge)
-        + "&due=" + encodeURIComponent(wo.deadline)
-        + "&cust=" + encodeURIComponent(wo.custId)
-        + "&status=" + encodeURIComponent(wo.status);
+      return base + "/?v=workorder-detail&id=" + encodeURIComponent(wo.id)
+        + "&m=" + encodeURIComponent(wo.modelName || wo.model)
+        + "&q=" + wo.qty
+        + "&g=" + encodeURIComponent(wo.gauge)
+        + "&d=" + encodeURIComponent(wo.deadline)
+        + "&c=" + encodeURIComponent(wo.custId)
+        + "&s=" + encodeURIComponent(wo.status);
     }
     const host = location.hostname;
     const isPublicHttp = /^https?:$/i.test(location.protocol) && host && host !== "localhost" && host !== "127.0.0.1";
     if (isPublicHttp) {
       const origin = location.origin + location.pathname.replace(/[^/]*$/, "");
-      return origin + "?view=workorder-detail&id=" + encodeURIComponent(wo.id)
-        + "&model=" + encodeURIComponent(wo.modelName || wo.model)
-        + "&qty=" + wo.qty
-        + "&gg=" + encodeURIComponent(wo.gauge)
-        + "&due=" + encodeURIComponent(wo.deadline)
-        + "&cust=" + encodeURIComponent(wo.custId)
-        + "&status=" + encodeURIComponent(wo.status);
+      return origin + "?v=workorder-detail&id=" + encodeURIComponent(wo.id)
+        + "&m=" + encodeURIComponent(wo.modelName || wo.model)
+        + "&q=" + wo.qty
+        + "&g=" + encodeURIComponent(wo.gauge)
+        + "&d=" + encodeURIComponent(wo.deadline)
+        + "&c=" + encodeURIComponent(wo.custId)
+        + "&s=" + encodeURIComponent(wo.status);
     }
     return "ZERYTHA WO | ID: " + wo.id +
       " | MODEL: " + (wo.modelName || wo.model) +
@@ -82,17 +82,17 @@
     if (!wo && q.id) {
       wo = {
         id: q.id,
-        custId: q.cust || "cust-001",
-        season: q.season || "2026",
-        model: (q.model || q.id).split(" ")[0],
-        modelName: q.model || q.id,
+        custId: q.cust || q.c || "cust-001",
+        season: q.season || q.sn || "2026",
+        model: (q.model || q.m || q.id).split(" ")[0],
+        modelName: q.model || q.m || q.id,
         yarnId: "manual",
-        yarnManual: q.yarn || "",
-        gauge: q.gg || "12 GG",
-        qty: parseInt(q.qty, 10) || 0,
-        deadline: q.due || new Date().toISOString().split("T")[0],
+        yarnManual: q.yarn || q.y || "",
+        gauge: q.gg || q.g || "12 GG",
+        qty: parseInt(q.qty || q.q, 10) || 0,
+        deadline: q.due || q.d || new Date().toISOString().split("T")[0],
         image: null,
-        status: q.status || "Açık",
+        status: q.status || q.s || "Açık",
         created: new Date().toISOString().split("T")[0],
         pieces: [],
         yarnUsage: []
@@ -282,8 +282,8 @@
       qrEl.innerHTML = "";
       new QRCode(qrEl, {
         text: qrPayload(wo),
-        width: 132,
-        height: 132,
+        width: 160,
+        height: 160,
         colorDark: "#0B0D0C",
         colorLight: "#F1EEE7",
         correctLevel: QRCode.CorrectLevel.L
@@ -451,7 +451,7 @@
     <tr><th>Miktar</th><td>${fmtNumber(w.qty)} adet</td><th>Termin</th><td>${fmtDate(w.deadline)}</td></tr>
     <tr><th>Durum</th><td>${esc(w.status)}</td><th>Oluşturulma</th><td>${fmtDate(w.created)}</td></tr>
   </table>
-  ${qr ? `<div style="margin-top:6mm;display:flex;align-items:center;gap:4mm;"><img src="${qr}" alt="QR" style="width:24mm;height:24mm;"><div class="muted">Makineci, QR kodu okutarak parça ve iplik kayıtlarını sisteme girer. Bu çıktı A4 olarak yazdırılabilir.</div></div>` : ""}
+  ${qr ? `<div style="margin-top:6mm;display:flex;align-items:center;gap:4mm;"><img src="${qr}" alt="QR" style="width:32mm;height:32mm;"><div class="muted">Makineci, QR kodu okutarak parça ve iplik kayıtlarını sisteme girer. Bu çıktı A4 olarak yazdırılabilir.</div></div>` : ""}
   ${pieceRows ? `<h2>Parça Kayıtları (Dakika)</h2><table><thead><tr><th>Parça Adı</th><th style="text-align:right;">Dakika</th><th style="text-align:right;">Ham Boy (cm)</th><th>Kaydeden</th><th>Tarih</th></tr></thead><tbody>${pieceRows}</tbody></table>` : ""}
   ${yarnRows ? `<h2>İplik Kullanımı (Gramaj)</h2><table><thead><tr><th>İplik Türü</th><th style="text-align:right;">Gramaj (g)</th><th style="text-align:right;">Kon Adedi</th><th>Tarih</th></tr></thead><tbody>${yarnRows}</tbody></table>` : ""}
   <p class="muted" style="margin-top:6mm;">Makineci, QR kodu okutarak parça ve iplik kayıtlarını sisteme girer. Bu çıktı A4 olarak yazdırılabilir.</p>

@@ -1,4 +1,4 @@
-/* =========================================================================
+﻿/* =========================================================================
    ZERYTHA OS — Application Core
    Premium Luxury Knitwear ERP & Business Management Platform
    Single-file SPA with all modules connected to mock application data.
@@ -501,8 +501,8 @@ function init() {
   let startPath = initial.charAt(0) === "/" ? initial : "";
   if (!startPath) {
     const params = new URLSearchParams(location.search || "");
-    const view = params.get("view");
-    if (view) {
+    const params = new URLSearchParams(location.search || "");
+    const view = params.get("view") || params.get("v");
       // tüm query parametrelerini koru (QR'dan gelen veri için)
       const qs = params.toString();
       startPath = "/" + view + (qs ? "?" + qs : "");
