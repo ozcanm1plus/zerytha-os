@@ -1,4 +1,4 @@
-/* =========================================================================
+﻿/* =========================================================================
    ZERYTHA OS — İş Emri Detayı (Work Order Detail)
    Gerçek QR kod + A4 yazdırma + parça / iplik kaydı
    ========================================================================= */
@@ -12,7 +12,17 @@
   }
 
   function cust(id) { return D.customers.find(x => x.id === id); }
-  function custName(id) { const c = cust(id); return c ? c.name : "—"; }
+  function custName(id) { const c = cust(id); return c ? c.name : '-'; }
+  function persistWo(w) {
+    if (!w) return;
+    try {
+      localStorage.setItem("wo_" + w.id, JSON.stringify({
+        status: w.status,
+        pieces: w.pieces || [],
+        yarnUsage: w.yarnUsage || []
+      }));
+    } catch (e) {}
+  }
   function custCode(id) { const c = cust(id); return c ? c.code : "—"; }
   function yarnName(id) {
     if (id === "manual") return "Elle girilen iplik";
@@ -28,13 +38,25 @@
   function qrPayload(wo) {
     const base = (window.APP.STATE.company && window.APP.STATE.company.qrBaseUrl || "").trim().replace(/\/+$/, "");
     if (base) {
-      return base + "/?view=workorder-detail&id=" + encodeURIComponent(wo.id);
+      return base + "/?view=workorder-detail&id=" + encodeURIComponent(wo.id)
+        + "&model=" + encodeURIComponent(wo.modelName || wo.model)
+        + "&qty=" + wo.qty
+        + "&gg=" + encodeURIComponent(wo.gauge)
+        + "&due=" + encodeURIComponent(wo.deadline)
+        + "&cust=" + encodeURIComponent(wo.custId)
+        + "&status=" + encodeURIComponent(wo.status);
     }
     const host = location.hostname;
     const isPublicHttp = /^https?:$/i.test(location.protocol) && host && host !== "localhost" && host !== "127.0.0.1";
     if (isPublicHttp) {
       const origin = location.origin + location.pathname.replace(/[^/]*$/, "");
-      return origin + "?view=workorder-detail&id=" + encodeURIComponent(wo.id);
+      return origin + "?view=workorder-detail&id=" + encodeURIComponent(wo.id)
+        + "&model=" + encodeURIComponent(wo.modelName || wo.model)
+        + "&qty=" + wo.qty
+        + "&gg=" + encodeURIComponent(wo.gauge)
+        + "&due=" + encodeURIComponent(wo.deadline)
+        + "&cust=" + encodeURIComponent(wo.custId)
+        + "&status=" + encodeURIComponent(wo.status);
     }
     // Ag erisimi yokken: metin (sistem baglantisi icin Ayarlar'dan sunucu adresi girilmeli)
     return "ZERYTHA WO | ID: " + wo.id +
@@ -46,7 +68,39 @@
 
   function render() {
     const q = window.APP.getQuery();
-    const wo = D.workOrders.find(w => w.id === q.id);
+    let wo = D.workOrders.find(w => w.id === q.id);
+
+    // QR'dan gelen veriyle iş emrini yeniden oluştur (statik listede yoksa)
+    if (!wo && q.id) {
+      wo = {
+        id: q.id,
+        custId: q.cust || "cust-001",
+        season: q.season || "2026",
+        model: (q.model || q.id).split(" ")[0],
+        modelName: q.model || q.id,
+        yarnId: "manual",
+        yarnManual: q.yarn || "",
+        gauge: q.gg || "12 GG",
+        qty: parseInt(q.qty, 10) || 0,
+        deadline: q.due || new Date().toISOString().split("T")[0],
+        image: null,
+        status: q.status || "Açık",
+        created: new Date().toISOString().split("T")[0],
+        pieces: [],
+        yarnUsage: []
+      };
+      // telefon hafızasından parça/iplik kayıtlarını geri yükle
+      try {
+        const saved = localStorage.getItem("wo_" + wo.id);
+        if (saved) {
+          const d = JSON.parse(saved);
+          if (Array.isArray(d.pieces)) wo.pieces = d.pieces;
+          if (Array.isArray(d.yarnUsage)) wo.yarnUsage = d.yarnUsage;
+          if (d.status) wo.status = d.status;
+        }
+      } catch (e) {}
+      D.workOrders.push(wo);
+    }
 
     if (!wo) {
       return `<div class="page-header"><div><h1 class="page-title text-brand">İş Emri Bulunamadı</h1><p class="page-subtitle">Kayıt silinmiş veya bağlantı geçersiz olabilir.</p></div></div>
@@ -207,6 +261,7 @@
       const w = D.workOrders.find(x => x.id === id);
       if (!w) return;
       w.status = w.status === "Açık" ? "Tamamlandı" : "Açık";
+      persistWo(w);
       toast("İş emri durumu: " + w.status);
       window.APP.refresh();
     };
@@ -225,6 +280,7 @@
         onSubmit(data) {
           w.pieces = w.pieces || [];
           w.pieces.push({ name: data.name, min: data.min, len: data.len, user: window.APP.STATE.user.name, ts: new Date().toISOString() });
+          persistWo(w);
           toast("Parça kaydedildi: " + data.name);
           window.APP.refresh();
         }
@@ -235,6 +291,7 @@
       const w = D.workOrders.find(x => x.id === id);
       if (!w || !w.pieces) return;
       w.pieces.splice(i, 1);
+      persistWo(w);
       toast("Parça kaydı kaldırıldı");
       window.APP.refresh();
     };
@@ -253,6 +310,8 @@
         onSubmit(data) {
           w.yarnUsage = w.yarnUsage || [];
           w.yarnUsage.push({ type: data.type, gram: data.gram, cones: data.cones, ts: new Date().toISOString() });
+          persistWo(w);
+
           toast("İplik kullanımı kaydedildi: " + data.type);
           window.APP.refresh();
         }
@@ -263,6 +322,8 @@
       const w = D.workOrders.find(x => x.id === id);
       if (!w || !w.yarnUsage) return;
       w.yarnUsage.splice(i, 1);
+      persistWo(w);
+
       toast("İplik kaydı kaldırıldı");
       window.APP.refresh();
     };

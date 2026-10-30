@@ -488,8 +488,9 @@ function init() {
     const params = new URLSearchParams(location.search || "");
     const view = params.get("view");
     if (view) {
-      const id = params.get("id");
-      startPath = "/" + view + (id ? "?id=" + encodeURIComponent(id) : "");
+      // tüm query parametrelerini koru (QR'dan gelen veri için)
+      const qs = params.toString();
+      startPath = "/" + view + (qs ? "?" + qs : "");
     }
   }
   if (!startPath) startPath = "/";
