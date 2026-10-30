@@ -22,6 +22,16 @@
         yarnUsage: w.yarnUsage || []
       }));
     } catch (e) {}
+    // Firebase bulut senkronizasyonu
+    if (window.FIREBASE && w) {
+      try {
+        window.FIREBASE.ref("workOrders/" + w.id).set({
+          status: w.status,
+          pieces: w.pieces || [],
+          yarnUsage: w.yarnUsage || []
+        });
+      } catch (e) {}
+    }
   }
   function custCode(id) { const c = cust(id); return c ? c.code : "—"; }
   function yarnName(id) {
@@ -100,6 +110,21 @@
         }
       } catch (e) {}
       D.workOrders.push(wo);
+    }
+
+    // Firebase'dan veri yükle (varsa)
+    if (window.FIREBASE && wo && window.__WO_FB_LOADED_ID !== wo.id) {
+      window.__WO_FB_LOADED_ID = wo.id;
+      window.FIREBASE.ref("workOrders/" + wo.id).once("value").then(snap => {
+        const d = snap.val();
+        if (d) {
+          if (Array.isArray(d.pieces)) wo.pieces = d.pieces;
+          if (Array.isArray(d.yarnUsage)) wo.yarnUsage = d.yarnUsage;
+          if (d.status) wo.status = d.status;
+          persistWo(wo);
+          window.APP.refresh();
+        }
+      }).catch(() => {});
     }
 
     if (!wo) {
@@ -235,6 +260,22 @@
     const q = window.APP.getQuery();
     const wo = D.workOrders.find(w => w.id === q.id);
     if (!wo) return;
+
+    // Firebase bulut senkronizasyonu (varsa)
+    if (window.FIREBASE && window.__WO_FB_ATTACHED_ID !== wo.id) {
+      window.__WO_FB_ATTACHED_ID = wo.id;
+      const ref = window.FIREBASE.ref("workOrders/" + wo.id);
+      ref.on("value", snap => {
+        const d = snap.val();
+        if (d) {
+          if (Array.isArray(d.pieces)) wo.pieces = d.pieces;
+          if (Array.isArray(d.yarnUsage)) wo.yarnUsage = d.yarnUsage;
+          if (d.status) wo.status = d.status;
+          persistWo(wo);
+          window.APP.refresh();
+        }
+      });
+    }
 
     const qrEl = document.getElementById("wo-qr");
     if (qrEl && window.QRCode) {

@@ -103,6 +103,17 @@
     </div>
   </div>
 </div>
+
+<div class="card" style="margin-top:1.5rem;">
+  <div class="card-body">
+    <div class="section-title">Firebase Bulut Veritabanı (opsiyonel)</div>
+    <div class="form-group">
+      <label class="form-label" for="set-firebase-config">Firebase Config (JSON)</label>
+      <textarea class="form-textarea" id="set-firebase-config" rows="6" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"...","projectId":"..."}'>${esc(STATE.firebaseConfig && Object.keys(STATE.firebaseConfig).length ? JSON.stringify(STATE.firebaseConfig) : "")}</textarea>
+      <div class="form-hint" style="font-size:0.72rem;color:var(--color-text-muted);margin-top:0.35rem;">Firebase Console → Project settings → Web app config. Boş bırakılırsa yerel (localStorage) mod çalışır. Kaydedince sayfayı yenileyin.</div>
+    </div>
+  </div>
+</div>
 `;
   }
 
@@ -137,6 +148,17 @@
       STATE.company.currency = currEl.value;
       const qrEl = document.getElementById("set-company-qr");
       STATE.company.qrBaseUrl = qrEl ? qrEl.value.trim() : STATE.company.qrBaseUrl;
+
+      const fbEl = document.getElementById("set-firebase-config");
+      if (fbEl) {
+        const txt = fbEl.value.trim();
+        if (txt) {
+          try { STATE.firebaseConfig = JSON.parse(txt); }
+          catch (e) { toast("Firebase config JSON geçersiz."); return; }
+        } else {
+          STATE.firebaseConfig = {};
+        }
+      }
 
       STATE.user.name = name;
       STATE.user.email = email;

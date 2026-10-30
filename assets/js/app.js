@@ -21,6 +21,7 @@ const STATE = {
     currency: "TRY — Türk Lirası",
     qrBaseUrl: "https://ozcanm1plus.github.io/zerytha-os"
   },
+  firebaseConfig: {},
   now: new Date(),
   notifications: [
     { id: 1, title: "Yeni sipariş onayı beliyor", time: "10 dk önce", read: false },
@@ -457,16 +458,30 @@ function loadSettings() {
     const s = JSON.parse(raw);
     if (s && s.company) Object.assign(STATE.company, s.company);
     if (s && s.user) Object.assign(STATE.user, s.user);
+    if (s && s.firebaseConfig) STATE.firebaseConfig = s.firebaseConfig;
   } catch (e) { /* ignore */ }
 }
 function saveSettings() {
   try {
-    localStorage.setItem("zerytha_settings", JSON.stringify({ company: STATE.company, user: STATE.user }));
+    localStorage.setItem("zerytha_settings", JSON.stringify({ company: STATE.company, user: STATE.user, firebaseConfig: STATE.firebaseConfig }));
   } catch (e) { /* ignore */ }
+}
+function initFirebase() {
+  const cfg = STATE.firebaseConfig;
+  if (!cfg || !cfg.apiKey || !cfg.databaseURL) { window.FIREBASE = null; return; }
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(cfg);
+    window.FIREBASE = firebase.database();
+    console.log("Firebase connected");
+  } catch (e) {
+    console.error("Firebase init failed", e);
+    window.FIREBASE = null;
+  }
 }
 window.APP.syncChrome = syncChrome;
 window.APP.loadSettings = loadSettings;
 window.APP.saveSettings = saveSettings;
+window.APP.initFirebase = initFirebase;
 
 window.APP.refresh = function () {
   const base = currentRoute.split("?")[0];
@@ -498,6 +513,7 @@ function init() {
   currentRoute = startPath;
   currentQuery = parseQuery(startPath);
   loadSettings();
+  initFirebase();
   setActiveNav(startBase);
   syncChrome();
   updateIsland(startBase);
