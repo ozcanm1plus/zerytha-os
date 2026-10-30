@@ -148,7 +148,7 @@
           <div id="wo-qr" class="wo-qr"></div>
           <div class="wo-qr-label">Makineci QR Tarama</div>
           <div style="font-size:0.62rem;color:var(--color-text-muted);margin-top:0.35rem;text-align:center;max-width:120px;line-height:1.3;">
-            Sistem bağlantısı için Ayarlar → QR Sistem Adresi girin ve yeniden yazdırın.
+            Telefonla okutunca iş emri açılır; dakika/gramaj girilip kaydedilir.
           </div>
         </div>
       </div>
