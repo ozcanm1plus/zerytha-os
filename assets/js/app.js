@@ -19,7 +19,7 @@ const STATE = {
     taxNo: "1234567890",
     address: "Bursa Organize Sanayi Bölgesi, 4. Cadde No:12, Bursa",
     currency: "TRY — Türk Lirası",
-    qrBaseUrl: "https://precious-sherbet-df4dd9.netlify.app"
+    qrBaseUrl: "https://ozcanm1plus.github.io/zerytha-os"
   },
   now: new Date(),
   notifications: [
