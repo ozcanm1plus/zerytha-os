@@ -501,14 +501,12 @@ function init() {
   let startPath = initial.charAt(0) === "/" ? initial : "";
   if (!startPath) {
     const params = new URLSearchParams(location.search || "");
-    const params = new URLSearchParams(location.search || "");
     const view = params.get("view") || params.get("v");
-      // tüm query parametrelerini koru (QR'dan gelen veri için)
+    if (view) {
       const qs = params.toString();
       startPath = "/" + view + (qs ? "?" + qs : "");
     }
   }
-  if (!startPath) startPath = "/";
   const startBase = startPath.split("?")[0];
   currentRoute = startPath;
   currentQuery = parseQuery(startPath);
